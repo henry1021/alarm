@@ -71,7 +71,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      'Pick Date: ${DateFormat('yyyy/MM/dd').format(_selectedDate)}',
+                      'Select Date: ${DateFormat('yyyy/MM/dd').format(_selectedDate)}',
                       style: TextStyle(fontSize: 16.0),
                     ),
                   ),
@@ -97,7 +97,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
                 children: <Widget>[
                   Expanded(
                     child: Text(
-                      'Pick Time: ${_selectedTime.format(context)}',
+                      'Select Time: ${_selectedTime.format(context)}',
                       style: TextStyle(fontSize: 16.0),
                     ),
                   ),
@@ -191,63 +191,21 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
   }
 
   void _viewAlarmLog() {
-    showDialog(
-      context: context,
-      builder: (BuildContext context) {
-        return AlertDialog(
-          title: Text('Alarm Log'),
-          content: SingleChildScrollView(
-            child: Column(
-              mainAxisSize: MainAxisSize.min,
-              children: _alarmLogs.map((log) {
-                return Container(
-                  margin: EdgeInsets.symmetric(vertical: 8.0),
-                  padding: EdgeInsets.all(8.0),
-                  decoration: BoxDecoration(
-                    border: Border.all(color: Colors.grey),
-                    borderRadius: BorderRadius.circular(8.0),
-                  ),
-                  child: Row(
-                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
-                    children: <Widget>[
-                      Expanded(
-                        child: Column(
-                          crossAxisAlignment: CrossAxisAlignment.start,
-                          children: <Widget>[
-                            Text(
-                              'Set at: ${log['Set at']}',
-                              style: TextStyle(fontSize: 16.0),
-                            ),
-                            Text(
-                              'Executed: ${log['Executed']}',
-                              style: TextStyle(fontSize: 16.0),
-                            ),
-                          ],
-                        ),
-                      ),
-                      IconButton(
-                        icon: Icon(Icons.edit),
-                        onPressed: () {
-                          Navigator.pop(context);
-                          _editAlarm(log);
-                        },
-                      ),
-                    ],
-                  ),
-                );
-              }).toList(),
-            ),
-          ),
-          actions: <Widget>[
-            TextButton(
-              onPressed: () {
-                Navigator.of(context).pop();
-              },
-              child: Text('OK'),
-            ),
-          ],
-        );
-      },
+    Navigator.push(
+      context,
+      MaterialPageRoute(
+        builder: (context) => AlarmLogPage(
+          alarmLogs: _alarmLogs,
+          onEdit: (log) {
+            _editAlarm(log);
+          },
+          onDelete: (logsToDelete) {
+            setState(() {
+              _alarmLogs.removeWhere((log) => logsToDelete.contains(log));
+            });
+          },
+        ),
+      ),
     );
   }
 
@@ -412,5 +370,134 @@ class AlarmRingingPage extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+class AlarmLogPage extends StatefulWidget {
+  final List<Map<String, dynamic>> alarmLogs;
+  final void Function(Map<String, dynamic>) onEdit;
+  final void Function(List<Map<String, dynamic>>) onDelete;
+
+  AlarmLogPage({
+    required this.alarmLogs,
+    required this.onEdit,
+    required this.onDelete,
+  });
+
+  @override
+  _AlarmLogPageState createState() => _AlarmLogPageState();
+}
+
+class _AlarmLogPageState extends State<AlarmLogPage> {
+  List<Map<String, dynamic>> _selectedLogs = [];
+  bool _isManagementMode = false;
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      appBar: AppBar(
+        title: Text('Alarm Log'),
+        actions: [
+          if (_isManagementMode)
+            Row(
+              children: [
+                IconButton(
+                  icon: Icon(Icons.delete),
+                  onPressed: () {
+                    if (_selectedLogs.isNotEmpty) {
+                      widget.onDelete(_selectedLogs);
+                      setState(() {
+                        _selectedLogs.clear();
+                        _isManagementMode = false;
+                      });
+                    }
+                  },
+                ),
+                IconButton(
+                  icon: Icon(Icons.cancel),
+                  onPressed: () {
+                    setState(() {
+                      _isManagementMode = false;
+                      _selectedLogs.clear();
+                    });
+                  },
+                ),
+              ],
+            ),
+          if (!_isManagementMode)
+            IconButton(
+              icon: Icon(Icons.edit),
+              onPressed: () {
+                setState(() {
+                  _isManagementMode = !_isManagementMode;
+                });
+              },
+            ),
+        ],
+      ),
+      body: Column(
+        children: [
+          Expanded(
+            child: ListView(
+              children: widget.alarmLogs.map((log) {
+                return ListTile(
+                  title: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: <Widget>[
+                      Text(
+                        'Set at: ${log['Set at']}',
+                        style: TextStyle(fontSize: 16.0),
+                      ),
+                      Text(
+                        'Executed: ${log['Executed']}',
+                        style: TextStyle(fontSize: 16.0),
+                      ),
+                    ],
+                  ),
+                  trailing: _isManagementMode
+                      ? Checkbox(
+                          value: _selectedLogs.contains(log),
+                          onChanged: (bool? value) {
+                            setState(() {
+                              if (value == true) {
+                                _selectedLogs.add(log);
+                              } else {
+                                _selectedLogs.remove(log);
+                              }
+                            });
+                          },
+                        )
+                      : IconButton(
+                          icon: Icon(Icons.edit),
+                          onPressed: () {
+                            widget.onEdit(log);
+                          },
+                        ),
+                  onTap: _isManagementMode
+                      ? null
+                      : () {
+                          widget.onEdit(log);
+                        },
+                );
+              }).toList(),
+            ),
+          ),
+          if (_isManagementMode)
+            Padding(
+              padding: const EdgeInsets.symmetric(vertical: 8.0),
+              child: ElevatedButton(
+                onPressed: _selectAll,
+                child: Text('Select All'),
+              ),
+            ),
+        ],
+      ),
+    );
+  }
+
+  void _selectAll() {
+    setState(() {
+      _selectedLogs = List.from(widget.alarmLogs);
+    });
   }
 }
