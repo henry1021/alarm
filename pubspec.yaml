@@ -17,6 +17,7 @@ dependencies:
   vibration: ^1.8.4
   intl: ^0.18.0
   haptic_feedback: ^0.5.1+1
+  audioplayers: ^6.1.0
 
 dev_dependencies:
   flutter_test:
@@ -24,3 +25,6 @@ dev_dependencies:
 
 flutter:
   uses-material-design: true
+
+  assets:
+    - assets/sounds/alarm_sound.mp3 # Add this line to include your audio file

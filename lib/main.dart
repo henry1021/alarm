@@ -1,12 +1,13 @@
 import 'dart:async';
 import 'package:flutter/material.dart';
-import 'package:vibration/vibration.dart'; // Import vibration package
+import 'package:vibration/vibration.dart';
 import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/standalone.dart' as tz;
 import 'package:intl/intl.dart';
+import 'package:audioplayers/audioplayers.dart';
 
 void main() {
-  tz.initializeTimeZones();
+  tz.initializeTimeZones(); // Initialize time zones for timezone package
   runApp(MyApp());
 }
 
@@ -35,14 +36,22 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
   final tz.Location _localLocation = tz.getLocation('Asia/Seoul');
   Timer? _vibrationTimer;
   bool _isAlarmActive = false;
-  List<Map<String, dynamic>> _alarmLogs = []; // Changed to store dynamic values
+  List<Map<String, dynamic>> _alarmLogs = [];
   DateTime _selectedDate = DateTime.now();
   TimeOfDay _selectedTime = TimeOfDay.now();
+  late AudioPlayer _audioPlayer;
 
   @override
   void initState() {
     super.initState();
+    _audioPlayer = AudioPlayer();
     _updateTime();
+  }
+
+  @override
+  void dispose() {
+    _audioPlayer.dispose(); // Dispose the audio player
+    super.dispose();
   }
 
   void _updateTime() {
@@ -131,6 +140,14 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
                     _selectedTime.minute,
                   );
                   _alarmSetTime = DateTime.now();
+
+                  _alarmLogs.add({
+                    'Set at': DateFormat('yyyy/MM/dd HH:mm:ss')
+                        .format(_alarmSetTime!),
+                    'Alarm Time':
+                        DateFormat('yyyy/MM/dd HH:mm:ss').format(_alarmTime!),
+                    'Executed': 'Not Executed',
+                  });
                 });
                 Navigator.of(context).pop();
                 _showAlarmSetNotification();
@@ -149,24 +166,22 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
     );
   }
 
-  void _showAlarmSetNotification() {
-    ScaffoldMessenger.of(context).showSnackBar(
-      SnackBar(
-        content: Text('Alarm set successfully for $_alarmTime'),
-      ),
-    );
-  }
-
   void _triggerAlarm() {
     if (_isAlarmActive) return;
     setState(() {
       _isAlarmActive = true;
-      _alarmLogs.add({
-        'Set at': DateFormat('yyyy/MM/dd HH:mm:ss').format(_alarmSetTime!),
-        'Executed': 'Yes',
-      });
+
+      for (var log in _alarmLogs) {
+        if (log['Alarm Time'] ==
+            DateFormat('yyyy/MM/dd HH:mm:ss').format(_alarmTime!)) {
+          log['Executed'] = 'Yes';
+          break;
+        }
+      }
     });
-    _startStrongVibration();
+
+    _startVibration();
+    _playAlarmSound();
     Navigator.push(
       context,
       MaterialPageRoute(
@@ -175,7 +190,9 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
             setState(() {
               _isAlarmActive = false;
               _vibrationTimer?.cancel();
+              _audioPlayer.stop();
             });
+            _stopVibration();
             Navigator.pop(context);
           },
         ),
@@ -183,11 +200,32 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
     );
   }
 
-  void _startStrongVibration() {
-    Vibration.vibrate(
-      pattern: [500, 1000, 500, 1000, 500, 1000, 500, 1000],
-      intensities: [255, 255, 255, 255, 255, 255, 255, 255],
+  void _showAlarmSetNotification() {
+    ScaffoldMessenger.of(context).showSnackBar(
+      SnackBar(
+        content: Text('Alarm set successfully for $_alarmTime'),
+      ),
     );
+  }
+
+  void _startVibration() async {
+    bool? canVibrate = await Vibration.hasVibrator();
+    if (canVibrate == true) {
+      Vibration.vibrate(
+        pattern: [500, 1000, 500, 1000, 500, 1000, 500, 1000],
+        intensities: [255, 255, 255, 255, 255, 255, 255, 255],
+      );
+    }
+  }
+
+  void _stopVibration() {
+    Vibration.cancel();
+  }
+
+  void _playAlarmSound() async {
+    // Ensure the audio file path is correct relative to your pubspec.yaml
+    await _audioPlayer.setSource(AssetSource('sounds/alarm_sound.mp3'));
+    await _audioPlayer.resume();
   }
 
   void _viewAlarmLog() {
@@ -281,17 +319,17 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
             TextButton(
               onPressed: () {
                 setState(() {
-                  _alarmTime = DateTime(
-                    alarmSetDate.year,
-                    alarmSetDate.month,
-                    alarmSetDate.day,
-                    alarmSetTime.hour,
-                    alarmSetTime.minute,
+                  log['Set at'] = DateFormat('yyyy/MM/dd HH:mm:ss').format(
+                    DateTime(
+                      alarmSetDate.year,
+                      alarmSetDate.month,
+                      alarmSetDate.day,
+                      alarmSetTime.hour,
+                      alarmSetTime.minute,
+                    ),
                   );
-                  _alarmSetTime = DateTime.now();
                 });
                 Navigator.of(context).pop();
-                _showAlarmSetNotification();
               },
               child: Text('Save'),
             ),
@@ -311,7 +349,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: Text('Welcome'),
+        title: Text('Alarm Home Page'),
       ),
       body: Center(
         child: Column(
