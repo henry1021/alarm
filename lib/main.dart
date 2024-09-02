@@ -5,6 +5,8 @@ import 'package:timezone/data/latest.dart' as tz;
 import 'package:timezone/standalone.dart' as tz;
 import 'package:intl/intl.dart';
 import 'package:audioplayers/audioplayers.dart';
+import 'package:shared_preferences/shared_preferences.dart';
+import 'dart:convert';
 
 void main() {
   tz.initializeTimeZones(); // Initialize time zones for timezone package
@@ -46,6 +48,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
     super.initState();
     _audioPlayer = AudioPlayer();
     _updateTime();
+    _loadAlarmLogs();
   }
 
   @override
@@ -65,6 +68,25 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
         }
       });
     });
+  }
+
+  Future<void> _loadAlarmLogs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String? alarmLogsJson = prefs.getString('alarmLogs');
+    if (alarmLogsJson != null) {
+      setState(() {
+        _alarmLogs = List<Map<String, dynamic>>.from(
+          jsonDecode(alarmLogsJson)
+              .map((item) => Map<String, dynamic>.from(item)),
+        );
+      });
+    }
+  }
+
+  Future<void> _saveAlarmLogs() async {
+    final prefs = await SharedPreferences.getInstance();
+    final String alarmLogsJson = jsonEncode(_alarmLogs);
+    await prefs.setString('alarmLogs', alarmLogsJson);
   }
 
   void _setAlarm() {
@@ -148,6 +170,8 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
                         DateFormat('yyyy/MM/dd HH:mm:ss').format(_alarmTime!),
                     'Executed': 'Not Executed',
                   });
+
+                  _saveAlarmLogs();
                 });
                 Navigator.of(context).pop();
                 _showAlarmSetNotification();
@@ -178,6 +202,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
           break;
         }
       }
+      _saveAlarmLogs();
     });
 
     _startVibration();
@@ -240,6 +265,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
           onDelete: (logsToDelete) {
             setState(() {
               _alarmLogs.removeWhere((log) => logsToDelete.contains(log));
+              _saveAlarmLogs();
             });
           },
         ),
@@ -328,6 +354,7 @@ class _AlarmHomePageState extends State<AlarmHomePage> {
                       alarmSetTime.minute,
                     ),
                   );
+                  _saveAlarmLogs();
                 });
                 Navigator.of(context).pop();
               },
